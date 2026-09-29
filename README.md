@@ -23,11 +23,12 @@ node booth-bridge.mjs lists
 node booth-bridge.mjs create-list "3D衣装"
 node booth-bridge.mjs item-lists 8764340
 node booth-bridge.mjs add-items "3D衣装" ids.json
+node booth-bridge.mjs move-items "原分组" "目标分组" ids.json
 ```
 
-`backup` 默认保存到 `backups/booth-时间.json`，也可指定文件名。它包含完整收藏商品信息及全部分组的商品 ID、名称、代码和 BOOTH 返回的分组元数据。第一次执行 `create-list` 或 `add-items` 时，如还没有有效备份，会自动先备份；备份未成功保存就不会修改 BOOTH。手动运行 `backup` 可随时保存新快照。
+`backup` 默认保存到 `backups/booth-时间.json`，也可指定文件名。它包含完整收藏商品信息及全部分组的商品 ID、名称、代码和 BOOTH 返回的分组元数据。第一次执行 `create-list`、`add-items` 或 `move-items` 时，如还没有有效备份，会自动先备份；备份未成功保存就不会修改 BOOTH。手动运行 `backup` 可随时保存新快照。
 
-`scan` 输出可供模型分类的商品信息。`ids.json` 是 ID 数组，例如 `[8764340,8870044]`。`add-items` 分批写入、读回核验，不会移除商品已有的分组；失败项会出现在 `failed` 中。
+`scan` 输出可供模型分类的商品信息。`ids.json` 是 ID 数组，例如 `[8764340,8870044]`。`add-items` 分批写入、读回核验，不会移除商品已有的分组；失败项会出现在 `failed` 中。`move-items` 先确认目标分组写入成功，再移除旧分组归属，并读回核验；它不会取消商品收藏。
 
 本机服务只监听 `127.0.0.1:8765`。生成的脚本、配置、收藏导出和备份属于个人数据，不要上传 GitHub；仓库的 `.gitignore` 已排除这些文件。源代码模板没有真实令牌。
 

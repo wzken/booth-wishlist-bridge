@@ -54,7 +54,7 @@ async function serve() {
       if (req.method === 'GET' && u.pathname === '/health') return json(res, 200, { ok: true, queued: queue.length });
       if (req.method === 'POST' && u.pathname === '/submit') {
         const command = await readJson(req);
-        if (!['status', 'scan', 'lists', 'backup', 'create-list', 'item-lists', 'add-items'].includes(command.type)) return json(res, 400, { error: 'Unsupported command' });
+        if (!['status', 'scan', 'lists', 'backup', 'create-list', 'item-lists', 'add-items', 'move-items'].includes(command.type)) return json(res, 400, { error: 'Unsupported command' });
         const id = randomUUID();
         tasks.set(id, { state: 'queued', created: Date.now() });
         queue.push({ id, command });
@@ -90,7 +90,7 @@ async function api(token, route, method = 'GET', body) {
 }
 async function command(token, input) {
   const { id } = await api(token, '/submit', 'POST', input);
-  const deadline = Date.now() + (['scan', 'backup', 'add-items'].includes(input.type) ? 900_000 : 60_000);
+  const deadline = Date.now() + (['scan', 'backup', 'add-items', 'move-items'].includes(input.type) ? 900_000 : 60_000);
   while (Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 400));
     const task = await api(token, '/result/' + id);
@@ -131,9 +131,15 @@ async function main() {
       input = { type: 'add-items', list: args[1], itemIds: ids };
       break;
     }
-    default: throw new Error('命令：setup | serve | status | backup [文件] | scan [文件] | lists | create-list 名称 | item-lists ID | add-items 分组 ids.json');
+    case 'move-items': {
+      if (!args[1] || !args[2] || !args[3]) throw new Error('用法：move-items 原分组 目标分组 ids.json');
+      const ids = JSON.parse(await readFile(args[3], 'utf8'));
+      input = { type: 'move-items', from: args[1], to: args[2], itemIds: ids };
+      break;
+    }
+    default: throw new Error('命令：setup | serve | status | backup [文件] | scan [文件] | lists | create-list 名称 | item-lists ID | add-items 分组 ids.json | move-items 原分组 目标分组 ids.json');
   }
-  if (['create-list', 'add-items'].includes(input.type) && (!config.firstBackup || !existsSync(config.firstBackup))) {
+  if (['create-list', 'add-items', 'move-items'].includes(input.type) && (!config.firstBackup || !existsSync(config.firstBackup))) {
     console.log('首次修改前自动备份收藏和分组…');
     await backup(config.token);
   }

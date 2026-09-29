@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BOOTH 收藏分类桥接
 // @namespace    local.booth.bridge
-// @version      2.0.0
+// @version      2.1.0
 // @description  本机批量读取 BOOTH 收藏、备份和管理私有收藏分组
 // @match        https://accounts.booth.pm/wish_lists*
 // @grant        GM_xmlhttpRequest
@@ -142,6 +142,37 @@
         result.failed.push(...pending.filter(id => !after.has(id) && !failedIds.has(id)).map(id => ({ id, error: 'BOOTH did not confirm membership' })));
         result.failed = result.failed.filter(x => !after.has(x.id));
         return result;
+      }
+      case 'move-items': {
+        const names = await booth('/wish_list_names.json');
+        const resolve = value => names.find(x => [x.name, x.code].some(v => String(v) === String(value)));
+        const from = resolve(command.from);
+        const to = resolve(command.to);
+        if (!from || !to || !from.code || !to.code || from.code === to.code) throw new Error('Invalid source or destination group');
+        if (!Array.isArray(command.itemIds) || !command.itemIds.length || command.itemIds.length > 1000) throw new Error('Expected 1–1000 item IDs');
+        const ids = [...new Set(command.itemIds.map(Number))];
+        if (ids.some(id => !Number.isSafeInteger(id) || id <= 0)) throw new Error('Invalid item ID');
+        const sourceBefore = await listItemIds(from.code);
+        const targetBefore = await listItemIds(to.code);
+        const missing = ids.filter(id => !sourceBefore.has(id) && !targetBefore.has(id));
+        if (missing.length) throw new Error(`Items in neither group: ${missing.join(', ')}`);
+        const add = ids.filter(id => !targetBefore.has(id));
+        for (let i = 0; i < add.length; i += 20) {
+          await booth(`/wish_list_names/${encodeURIComponent(to.code)}/items.json`, 'POST', { item_ids: add.slice(i, i + 20) });
+          await sleep(150);
+        }
+        const targetAfter = await listItemIds(to.code);
+        const notAdded = ids.filter(id => !targetAfter.has(id));
+        if (notAdded.length) throw new Error(`Destination membership not confirmed: ${notAdded.join(', ')}`);
+        const remove = ids.filter(id => sourceBefore.has(id));
+        for (let i = 0; i < remove.length; i += 20) {
+          await booth(`/wish_list_names/${encodeURIComponent(from.code)}/items.json`, 'DELETE', { item_ids: remove.slice(i, i + 20) });
+          await sleep(150);
+        }
+        const sourceAfter = await listItemIds(from.code);
+        const stillInSource = ids.filter(id => sourceAfter.has(id));
+        if (stillInSource.length) throw new Error(`Source membership still present: ${stillInSource.join(', ')}`);
+        return { from: from.name, to: to.name, moved: remove, alreadyMoved: ids.filter(id => !sourceBefore.has(id)) };
       }
       default: throw new Error('Unsupported command');
     }
