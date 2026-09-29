@@ -1,0 +1,6 @@
+.booth-bridge-config.json
+booth-bridge.local.user.js
+backups/
+*.json
+*.tmp
+node_modules/
